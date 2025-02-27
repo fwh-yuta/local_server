@@ -14,10 +14,9 @@
             padding: 20px;
             margin: 20px 0;
         }
-        #viewer {
+        #content {
             width: 100%;
-            height: 600px;
-            border: none;
+            min-height: 600px;
         }
     </style>
 </head>
@@ -26,12 +25,13 @@
         <p>ZIPファイルをここにドラッグ＆ドロップするか、クリックしてファイルを選択してください</p>
         <input type="file" id="fileInput" accept=".zip" style="display: none;">
     </div>
-    <iframe id="viewer"></iframe>
+    <div id="content"></div>
 
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
-        const viewer = document.getElementById('viewer');
+        const content = document.getElementById('content');
+        let fileMap = new Map();
 
         // ドラッグ＆ドロップの処理
         dropZone.addEventListener('dragover', (e) => {
@@ -53,7 +53,6 @@
             }
         });
 
-        // クリックでファイル選択
         dropZone.addEventListener('click', () => {
             fileInput.click();
         });
@@ -65,32 +64,96 @@
             }
         });
 
-        // ZIPファイルの処理
         async function handleZipFile(file) {
             try {
                 const zip = new JSZip();
                 const contents = await zip.loadAsync(file);
-                
-                // index.htmlを探す
-                let indexContent = null;
-                let indexBlob = null;
+                fileMap.clear();
 
+                // すべてのファイルをBlobとして保存
                 for (const [filename, file] of Object.entries(contents.files)) {
-                    if (filename.toLowerCase() === 'index.html') {
-                        indexContent = await file.async('blob');
-                        indexBlob = URL.createObjectURL(indexContent);
-                        break;
+                    if (!file.dir) {
+                        const blob = await file.async('blob');
+                        const blobUrl = URL.createObjectURL(blob);
+                        fileMap.set(filename, {
+                            url: blobUrl,
+                            type: getFileType(filename)
+                        });
                     }
                 }
 
-                if (indexBlob) {
-                    viewer.src = indexBlob;
+                // index.htmlを探して処理
+                const indexFile = fileMap.get('index.html');
+                if (indexFile) {
+                    const text = await (await fetch(indexFile.url)).text();
+                    const modifiedHtml = processHTML(text);
+                    content.innerHTML = modifiedHtml;
+
+                    // スタイルシートを適用
+                    applyStyles();
                 } else {
                     alert('ZIPファイル内にindex.htmlが見つかりませんでした。');
                 }
             } catch (error) {
                 console.error('エラーが発生しました:', error);
                 alert('ZIPファイルの処理中にエラーが発生しました。');
+            }
+        }
+
+        function getFileType(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const typeMap = {
+                'css': 'text/css',
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+                'png': 'image/png',
+                'gif': 'image/gif',
+                'svg': 'image/svg+xml',
+                'html': 'text/html'
+            };
+            return typeMap[ext] || 'application/octet-stream';
+        }
+
+        function processHTML(html) {
+            // CSSのパスを修正
+            html = html.replace(
+                /(href=["'])(\/css\/[^"']+)["']/g,
+                (match, p1, p2) => {
+                    const cssPath = p2.substring(1); // 先頭の/を削除
+                    const cssFile = fileMap.get(cssPath);
+                    return cssFile ? `${p1}${cssFile.url}"` : match;
+                }
+            );
+
+            // 画像のパスを修正
+            html = html.replace(
+                /(src=["'])(\/img\/[^"']+)["']/g,
+                (match, p1, p2) => {
+                    const imgPath = p2.substring(1); // 先頭の/を削除
+                    const imgFile = fileMap.get(imgPath);
+                    return imgFile ? `${p1}${imgFile.url}"` : match;
+                }
+            );
+
+            return html;
+        }
+
+        function applyStyles() {
+            // CSSファイルを適用
+            const styleSheets = document.getElementsByTagName('link');
+            for (const sheet of styleSheets) {
+                if (sheet.rel === 'stylesheet' && sheet.href) {
+                    const cssUrl = sheet.href;
+                    if (cssUrl.startsWith('blob:')) {
+                        // すでに処理済みのCSSは無視
+                        continue;
+                    }
+                    // 新しいlink要素を作成して置き換え
+                    const newLink = document.createElement('link');
+                    newLink.rel = 'stylesheet';
+                    newLink.href = cssUrl;
+                    sheet.parentNode.replaceChild(newLink, sheet);
+                }
             }
         }
     </script>
