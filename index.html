@@ -160,10 +160,6 @@
                     }
                 );
 
-                // Blobの作成
-                const blob = new Blob([content], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-
                 // ダウンロードセクションの表示と設定
                 const downloadSection = document.getElementById('downloadSection');
                 const downloadButton = document.getElementById('downloadButton');
@@ -176,11 +172,29 @@
                 
                 // 新しいイベントリスナーを設定
                 newButton.addEventListener('click', () => {
+                    // Blobの作成（クリック時に毎回新しく作成）
+                    const blob = new Blob([content], { type: 'text/html' });
+                    
+                    // ダウンロードリンクを作成
                     const a = document.createElement('a');
-                    a.href = url;
+                    a.href = window.URL.createObjectURL(blob);
                     a.download = 'converted_' + file.name;
-                    a.click();
-                    // URLは残しておく（複数回ダウンロードに対応）
+                    
+                    // リンクを非表示で追加
+                    document.body.appendChild(a);
+                    
+                    // saveAsを使用してダイアログを表示
+                    if (window.navigator.msSaveOrOpenBlob) {
+                        // IEとEdge用
+                        window.navigator.msSaveOrOpenBlob(blob, 'converted_' + file.name);
+                    } else {
+                        // その他のブラウザ用
+                        a.click();
+                    }
+                    
+                    // クリーンアップ
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(a.href);
                 });
             };
             reader.readAsText(file);
