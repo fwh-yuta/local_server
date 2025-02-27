@@ -72,11 +72,12 @@
         <h3>変換完了</h3>
         <p>ファイルの変換が完了しました。下のボタンをクリックして保存してください。</p>
         <div id="downloadContainer" style="text-align: center; margin-top: 20px;">
-            <button id="downloadButton" class="download-btn">保存先を選択して保存</button>
+            <button id="saveAsButton" class="download-button">保存先を選択して保存</button>
+            <button id="normalDownloadButton" class="download-button" style="margin-left: 10px; background-color: #2196f3;">
+                通常のダウンロード
+            </button>
             <p id="browserSupport" style="color: #666; margin-top: 10px; display: none;">
-                ※ この機能は最新のChrome、Edge、Operaでのみ利用可能です。
-                <br>
-                他のブラウザでは通常のダウンロードとなります。
+                ※ 保存先選択機能は最新のChrome、Edge、Operaでのみ利用可能です。
             </p>
         </div>
     </div>
@@ -177,14 +178,51 @@
             reader.readAsText(file);
         }
 
-        // 従来のダウンロード方式（フォールバック）
+        // 保存先を選択して保存
+        document.getElementById('saveAsButton').addEventListener('click', async () => {
+            const supportMessage = document.getElementById('browserSupport');
+            
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: 'converted_' + window.originalFileName,
+                        types: [{
+                            description: 'HTML File',
+                            accept: {'text/html': ['.html']},
+                        }],
+                    });
+
+                    const writable = await handle.createWritable();
+                    await writable.write(window.convertedContent);
+                    await writable.close();
+
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('保存中にエラーが発生しました:', err);
+                        fallbackDownload();
+                    }
+                }
+            } else {
+                supportMessage.style.display = 'block';
+                fallbackDownload();
+            }
+        });
+
+        // 通常のダウンロード
+        document.getElementById('normalDownloadButton').addEventListener('click', () => {
+            fallbackDownload();
+        });
+
+        // 従来のダウンロード方式
         function fallbackDownload() {
             const blob = new Blob([window.convertedContent], { type: 'text/html' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
             a.download = 'converted_' + window.originalFileName;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
     </script>
