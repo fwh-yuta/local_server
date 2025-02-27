@@ -3,20 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ファイルパスリゾルバー</title>
+    <title>HTMLビューワー</title>
     <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
         #dropArea {
             width: 100%;
             min-height: 200px;
             border: 2px dashed #ccc;
+            border-radius: 8px;
             padding: 20px;
-            margin: 20px 0;
             text-align: center;
+            margin-bottom: 20px;
         }
-        #fileInputs {
-            margin: 20px 0;
+        #dropArea.dragover {
+            background-color: #e1e1e1;
+            border-color: #999;
         }
-        #preview {
+        #htmlList {
+            margin-bottom: 20px;
+        }
+        .html-button {
+            padding: 8px 16px;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f8f8f8;
+            cursor: pointer;
+        }
+        .html-button:hover {
+            background-color: #e8e8e8;
+        }
+        #viewer {
             width: 100%;
             min-height: 500px;
             border: 1px solid #ccc;
@@ -26,124 +46,119 @@
 </head>
 <body>
     <div id="dropArea">
-        <h2>ファイルをここにドロップしてください</h2>
-        <p>または以下から選択してください：</p>
-        <div id="fileInputs">
-            <div>
-                <label>HTML: </label>
-                <input type="file" id="htmlFile" accept=".html">
-            </div>
-            <div>
-                <label>CSS: </label>
-                <input type="file" id="cssFile" accept=".css" multiple>
-            </div>
-            <div>
-                <label>画像: </label>
-                <input type="file" id="imgFiles" accept="image/*" multiple>
-            </div>
-        </div>
+        <h2>フォルダをここにドロップしてください</h2>
+        <p>または</p>
+        <input type="file" id="folderInput" webkitdirectory directory multiple>
     </div>
-    <div id="preview"></div>
+    <div id="htmlList"></div>
+    <div id="viewer"></div>
 
     <script>
-        const preview = document.getElementById('preview');
-        const fileUrls = new Map();
+        const dropArea = document.getElementById('dropArea');
+        const folderInput = document.getElementById('folderInput');
+        const htmlList = document.getElementById('htmlList');
+        const viewer = document.getElementById('viewer');
+        const fileMap = new Map();
 
         // ドラッグ&ドロップの処理
-        const dropArea = document.getElementById('dropArea');
-        
         dropArea.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropArea.style.backgroundColor = '#f0f0f0';
+            dropArea.classList.add('dragover');
         });
 
-        dropArea.addEventListener('dragleave', (e) => {
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.classList.remove('dragover');
+        });
+
+        dropArea.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropArea.style.backgroundColor = '';
+            dropArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.items);
         });
 
-        dropArea.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            dropArea.style.backgroundColor = '';
-            
-            const files = Array.from(e.dataTransfer.files);
-            await handleFiles(files);
-        });
-
-        // ファイル選択の処理
-        document.getElementById('htmlFile').addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            await handleFiles(files);
-        });
-
-        document.getElementById('cssFile').addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            await handleFiles(files);
-        });
-
-        document.getElementById('imgFiles').addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            await handleFiles(files);
+        folderInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
         });
 
         async function handleFiles(files) {
+            fileMap.clear();
+            htmlList.innerHTML = '';
+            const htmlFiles = [];
+
+            // ファイルの処理
             for (const file of files) {
-                const blobUrl = URL.createObjectURL(file);
-                // ファイルパスをシミュレート
-                const path = getSimulatedPath(file);
-                fileUrls.set(path, blobUrl);
-                
-                if (file.name.endsWith('.html')) {
-                    const content = await file.text();
-                    displayHTML(content);
+                const path = file.webkitRelativePath || file.name;
+                const blob = new Blob([await file.getFile()], { type: file.type });
+                const url = URL.createObjectURL(blob);
+                fileMap.set(path, url);
+
+                if (path.toLowerCase().endsWith('.html')) {
+                    htmlFiles.push(path);
                 }
             }
-        }
 
-        function getSimulatedPath(file) {
-            const ext = file.name.split('.').pop().toLowerCase();
-            if (ext === 'css') {
-                return `/css/promotion/${file.name}`;
-            } else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
-                return `/img/promotion/index_04_02/${file.name}`;
-            }
-            return `/${file.name}`;
-        }
-
-        function displayHTML(html) {
-            // サーバーパスをBlobURLに置換
-            let modifiedHtml = html;
-            
-            // CSSパスの置換
-            modifiedHtml = modifiedHtml.replace(
-                /(href=["'])(\/css\/[^"']+)["']/g,
-                (match, p1, p2) => {
-                    const blobUrl = fileUrls.get(p2);
-                    return blobUrl ? `${p1}${blobUrl}"` : match;
-                }
-            );
-
-            // 画像パスの置換
-            modifiedHtml = modifiedHtml.replace(
-                /(src=["'])(\/img\/[^"']+)["']/g,
-                (match, p1, p2) => {
-                    const blobUrl = fileUrls.get(p2);
-                    return blobUrl ? `${p1}${blobUrl}"` : match;
-                }
-            );
-
-            preview.innerHTML = modifiedHtml;
-
-            // スタイルシートの適用
-            const links = preview.getElementsByTagName('link');
-            Array.from(links).forEach(link => {
-                if (link.rel === 'stylesheet') {
-                    const newLink = document.createElement('link');
-                    newLink.rel = 'stylesheet';
-                    newLink.href = link.href;
-                    link.parentNode.replaceChild(newLink, link);
-                }
+            // HTMLファイルのリスト表示
+            htmlFiles.forEach(path => {
+                const button = document.createElement('button');
+                button.className = 'html-button';
+                button.textContent = path;
+                button.onclick = () => displayHTML(path);
+                htmlList.appendChild(button);
             });
+        }
+
+        async function displayHTML(htmlPath) {
+            try {
+                const response = await fetch(fileMap.get(htmlPath));
+                let html = await response.text();
+
+                // CSSパスの解決
+                html = html.replace(
+                    /(href=["'])(\/[^"']+\.css)["']/g,
+                    (match, attr, path) => {
+                        const cssPath = path.substring(1); // 先頭の/を削除
+                        const resolvedPath = findMatchingFile(cssPath);
+                        return resolvedPath ? `${attr}${resolvedPath}"` : match;
+                    }
+                );
+
+                // 画像パスの解決
+                html = html.replace(
+                    /(src=["'])(\/[^"']+)["']/g,
+                    (match, attr, path) => {
+                        const imgPath = path.substring(1); // 先頭の/を削除
+                        const resolvedPath = findMatchingFile(imgPath);
+                        return resolvedPath ? `${attr}${resolvedPath}"` : match;
+                    }
+                );
+
+                viewer.innerHTML = html;
+
+                // スタイルシートの適用
+                const links = viewer.getElementsByTagName('link');
+                Array.from(links).forEach(link => {
+                    if (link.rel === 'stylesheet') {
+                        const newLink = document.createElement('link');
+                        newLink.rel = 'stylesheet';
+                        newLink.href = link.href;
+                        link.parentNode.replaceChild(newLink, link);
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error:', error);
+                viewer.innerHTML = '<p>エラーが発生しました。</p>';
+            }
+        }
+
+        function findMatchingFile(searchPath) {
+            // ファイルパスの解決
+            for (const [path, url] of fileMap.entries()) {
+                if (path.endsWith(searchPath)) {
+                    return url;
+                }
+            }
+            return null;
         }
     </script>
 </body>
