@@ -21,13 +21,57 @@
             background-color: #e1f5fe;
             border-color: #2196f3;
         }
+        .attribute-list {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .download-section {
+            margin-top: 20px;
+            display: none;
+        }
+        .download-button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .download-button:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
     <h1>HTMLパス変換ツール</h1>
     <div class="drop-zone" id="dropZone">
+        <h3>このツールについて</h3>
+        <p>GitHub Pagesなどで使用するHTMLファイルのパスを、ローカル環境で動作するように変換します。</p>
+        <p>変換対象の属性：</p>
+        <div class="attribute-list">
+            <ul>
+                <li>href, src - 通常のリンクや画像</li>
+                <li>data-src - 遅延読み込み（lazy loading）</li>
+                <li>poster - videoタグのサムネイル画像</li>
+                <li>background - 背景画像</li>
+                <li>action - フォームの送信先URL</li>
+                <li>srcset - レスポンシブ画像</li>
+                <li>content - metaタグのURL</li>
+                <li>manifest - PWAのマニフェストファイル</li>
+                <li>style内のurl() - CSS背景画像</li>
+            </ul>
+        </div>
         <p>HTMLファイルをここにドラッグ＆ドロップするか、クリックしてファイルを選択してください</p>
         <input type="file" id="fileInput" accept=".html" style="display: none;">
+    </div>
+
+    <div id="downloadSection" class="download-section">
+        <h3>変換完了</h3>
+        <p>ファイルの変換が完了しました。以下のボタンからダウンロードできます。</p>
+        <button id="downloadButton" class="download-button">変換したファイルをダウンロード</button>
     </div>
 
     <script>
@@ -69,20 +113,75 @@
             reader.onload = (e) => {
                 let content = e.target.result;
                 
-                // サーバーパスをローカルパスに変換
-                content = content.replace(/href="\/([^"]*)"/g, 'href="$1"');
-                content = content.replace(/src="\/([^"]*)"/g, 'src="$1"');
-                
-                // 変換したファイルをダウンロード
+                // 変換が必要な属性のリスト
+                const attributesToConvert = [
+                    'href',
+                    'src',
+                    'data-src',
+                    'poster',
+                    'background',
+                    'action',
+                    'content',
+                    'manifest'
+                ];
+
+                // 通常の属性のパス変換
+                attributesToConvert.forEach(attr => {
+                    content = content.replace(
+                        new RegExp(`${attr}="\/([^"]*)"`, 'g'),
+                        `${attr}="$1"`
+                    );
+                });
+
+                // srcset属性の特別な処理
+                content = content.replace(/srcset="([^"]*)/g, function(match, p1) {
+                    return 'srcset="' + p1.split(',').map(part => {
+                        let [path, size] = part.trim().split(/\s+/);
+                        path = path.replace(/^\//, '');
+                        return size ? `${path} ${size}` : path;
+                    }).join(', ');
+                });
+
+                // CSSの背景画像URLも変換
+                content = content.replace(
+                    /url\(["']?\/([^"'\)]+)["']?\)/g,
+                    'url("$1")'
+                );
+
+                // メタタグのURLを含むcontent属性の特別な処理
+                content = content.replace(
+                    /<meta[^>]*content="([^"]*)"[^>]*>/g,
+                    function(match, p1) {
+                        // URLを含むメタタグの場合のみ変換
+                        if (p1.startsWith('/')) {
+                            return match.replace('content="/', 'content="');
+                        }
+                        return match;
+                    }
+                );
+
+                // Blobの作成
                 const blob = new Blob([content], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'converted_' + file.name;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+
+                // ダウンロードセクションの表示と設定
+                const downloadSection = document.getElementById('downloadSection');
+                const downloadButton = document.getElementById('downloadButton');
+                
+                downloadSection.style.display = 'block';
+                
+                // 既存のイベントリスナーを削除（複数回の変換に対応）
+                const newButton = downloadButton.cloneNode(true);
+                downloadButton.parentNode.replaceChild(newButton, downloadButton);
+                
+                // 新しいイベントリスナーを設定
+                newButton.addEventListener('click', () => {
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'converted_' + file.name;
+                    a.click();
+                    // URLは残しておく（複数回ダウンロードに対応）
+                });
             };
             reader.readAsText(file);
         }
