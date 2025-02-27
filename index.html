@@ -70,7 +70,12 @@
 
     <div id="downloadSection" class="download-section">
         <h3>変換完了</h3>
-        <p>ファイルの変換が完了しました。以下のボタンからダウンロードできます。</p>
+        <p>ファイルの変換が完了しました。ファイル名を指定してダウンロードできます。</p>
+        <div style="margin: 20px 0;">
+            <label for="fileName">ファイル名：</label>
+            <input type="text" id="fileName" style="padding: 5px; margin-right: 10px;">
+            <span style="color: #666;">.html</span>
+        </div>
         <button id="downloadButton" class="download-button">変換したファイルをダウンロード</button>
     </div>
 
@@ -163,6 +168,11 @@
                 // ダウンロードセクションの表示と設定
                 const downloadSection = document.getElementById('downloadSection');
                 const downloadButton = document.getElementById('downloadButton');
+                const fileNameInput = document.getElementById('fileName');
+                
+                // 元のファイル名から拡張子を除いた部分を取得
+                const originalName = file.name.replace('.html', '');
+                fileNameInput.value = 'converted_' + originalName;
                 
                 downloadSection.style.display = 'block';
                 
@@ -170,15 +180,21 @@
                 const newButton = downloadButton.cloneNode(true);
                 downloadButton.parentNode.replaceChild(newButton, downloadButton);
                 
-                // 新しいイベントリスナーを設定
+                // Blobの作成（クリック時に毎回新しく作成）
                 newButton.addEventListener('click', () => {
-                    // Blobの作成（クリック時に毎回新しく作成）
                     const blob = new Blob([content], { type: 'text/html' });
                     
                     // ダウンロードリンクを作成
                     const a = document.createElement('a');
                     a.href = window.URL.createObjectURL(blob);
-                    a.download = 'converted_' + file.name;
+                    
+                    // ファイル名を取得（空の場合はデフォルト名を使用）
+                    let fileName = fileNameInput.value.trim() || 'converted_' + originalName;
+                    // .htmlが含まれていない場合は追加
+                    if (!fileName.toLowerCase().endsWith('.html')) {
+                        fileName += '.html';
+                    }
+                    a.download = fileName;
                     
                     // リンクを非表示で追加
                     document.body.appendChild(a);
@@ -186,7 +202,7 @@
                     // saveAsを使用してダイアログを表示
                     if (window.navigator.msSaveOrOpenBlob) {
                         // IEとEdge用
-                        window.navigator.msSaveOrOpenBlob(blob, 'converted_' + file.name);
+                        window.navigator.msSaveOrOpenBlob(blob, fileName);
                     } else {
                         // その他のブラウザ用
                         a.click();
