@@ -70,13 +70,8 @@
 
     <div id="downloadSection" class="download-section">
         <h3>変換完了</h3>
-        <p>ファイルの変換が完了しました。ファイル名を指定してダウンロードできます。</p>
-        <div style="margin: 20px 0;">
-            <label for="fileName">ファイル名：</label>
-            <input type="text" id="fileName" style="padding: 5px; margin-right: 10px;">
-            <span style="color: #666;">.html</span>
-        </div>
-        <div id="downloadContainer" style="display: none; text-align: center; margin-top: 20px;">
+        <p>ファイルの変換が完了しました。下のボタンをクリックして保存してください。</p>
+        <div id="downloadContainer" style="text-align: center; margin-top: 20px;">
             <button id="downloadButton" class="download-btn">保存先を選択して保存</button>
             <p id="browserSupport" style="color: #666; margin-top: 10px; display: none;">
                 ※ この機能は最新のChrome、Edge、Operaでのみ利用可能です。
@@ -172,57 +167,12 @@
                     }
                 );
 
-                // ダウンロードセクションの表示と設定
-                const downloadSection = document.getElementById('downloadSection');
-                const downloadButton = document.getElementById('downloadButton');
-                const fileNameInput = document.getElementById('fileName');
-                
-                // 元のファイル名から拡張子を除いた部分を取得
-                const originalName = file.name.replace('.html', '');
-                fileNameInput.value = 'converted_' + originalName;
-                
-                downloadSection.style.display = 'block';
-                
-                // 既存のイベントリスナーを削除（複数回の変換に対応）
-                const newButton = downloadButton.cloneNode(true);
-                downloadButton.parentNode.replaceChild(newButton, downloadButton);
-                
-                // ダウンロードボタンのイベントリスナー
-                newButton.addEventListener('click', async () => {
-                    const supportMessage = document.getElementById('browserSupport');
-                    
-                    // File System Access APIのサポートチェック
-                    if ('showSaveFilePicker' in window) {
-                        try {
-                            // ファイル保存ダイアログを表示
-                            const handle = await window.showSaveFilePicker({
-                                suggestedName: 'converted_' + originalName,
-                                types: [{
-                                    description: 'HTML File',
-                                    accept: {'text/html': ['.html']},
-                                }],
-                            });
+                // 変換後のコンテンツをグローバル変数として保存
+                window.convertedContent = content;
+                window.originalFileName = file.name;
 
-                            // FileSystemWritableFileStreamを取得
-                            const writable = await handle.createWritable();
-                            
-                            // ファイルに書き込み
-                            await writable.write(content);
-                            await writable.close();
-
-                        } catch (err) {
-                            if (err.name !== 'AbortError') {
-                                console.error('保存中にエラーが発生しました:', err);
-                                // フォールバック：通常のダウンロード
-                                fallbackDownload();
-                            }
-                        }
-                    } else {
-                        // File System Access APIが利用できない場合
-                        supportMessage.style.display = 'block';
-                        fallbackDownload();
-                    }
-                });
+                // ダウンロードセクションを表示
+                document.getElementById('downloadSection').style.display = 'block';
             };
             reader.readAsText(file);
         }
