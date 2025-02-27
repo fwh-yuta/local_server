@@ -21,62 +21,13 @@
             background-color: #e1f5fe;
             border-color: #2196f3;
         }
-        .attribute-list {
-            background-color: #f5f5f5;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-        .download-section {
-            margin-top: 20px;
-            display: none;
-        }
-        .download-button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .download-button:hover {
-            background-color: #45a049;
-        }
     </style>
 </head>
 <body>
     <h1>HTMLパス変換ツール</h1>
     <div class="drop-zone" id="dropZone">
-        <h3>このツールについて</h3>
-        <p>GitHub Pagesなどで使用するHTMLファイルのパスを、ローカル環境で動作するように変換します。</p>
-        <p>変換対象の属性：</p>
-        <div class="attribute-list">
-            <ul>
-                <li>href, src - 通常のリンクや画像</li>
-                <li>data-src - 遅延読み込み（lazy loading）</li>
-                <li>poster - videoタグのサムネイル画像</li>
-                <li>background - 背景画像</li>
-                <li>action - フォームの送信先URL</li>
-                <li>srcset - レスポンシブ画像</li>
-                <li>content - metaタグのURL</li>
-                <li>manifest - PWAのマニフェストファイル</li>
-                <li>style内のurl() - CSS背景画像</li>
-            </ul>
-        </div>
         <p>HTMLファイルをここにドラッグ＆ドロップするか、クリックしてファイルを選択してください</p>
         <input type="file" id="fileInput" accept=".html" style="display: none;">
-    </div>
-
-    <div id="downloadSection" class="download-section">
-        <h3>変換完了</h3>
-        <p>ファイルの変換が完了しました。ファイル名を指定してダウンロードできます。</p>
-        <div style="margin: 20px 0;">
-            <label for="fileName">ファイル名：</label>
-            <input type="text" id="fileName" style="padding: 5px; margin-right: 10px;">
-            <span style="color: #666;">.html</span>
-        </div>
-        <button id="downloadButton" class="download-button">変換したファイルをダウンロード</button>
     </div>
 
     <script>
@@ -165,53 +116,16 @@
                     }
                 );
 
-                // ダウンロードセクションの表示と設定
-                const downloadSection = document.getElementById('downloadSection');
-                const downloadButton = document.getElementById('downloadButton');
-                const fileNameInput = document.getElementById('fileName');
-                
-                // 元のファイル名から拡張子を除いた部分を取得
-                const originalName = file.name.replace('.html', '');
-                fileNameInput.value = 'converted_' + originalName;
-                
-                downloadSection.style.display = 'block';
-                
-                // 既存のイベントリスナーを削除（複数回の変換に対応）
-                const newButton = downloadButton.cloneNode(true);
-                downloadButton.parentNode.replaceChild(newButton, downloadButton);
-                
-                // Blobの作成（クリック時に毎回新しく作成）
-                newButton.addEventListener('click', () => {
-                    const blob = new Blob([content], { type: 'text/html' });
-                    
-                    // ダウンロードリンクを作成
-                    const a = document.createElement('a');
-                    a.href = window.URL.createObjectURL(blob);
-                    
-                    // ファイル名を取得（空の場合はデフォルト名を使用）
-                    let fileName = fileNameInput.value.trim() || 'converted_' + originalName;
-                    // .htmlが含まれていない場合は追加
-                    if (!fileName.toLowerCase().endsWith('.html')) {
-                        fileName += '.html';
-                    }
-                    a.download = fileName;
-                    
-                    // リンクを非表示で追加
-                    document.body.appendChild(a);
-                    
-                    // saveAsを使用してダイアログを表示
-                    if (window.navigator.msSaveOrOpenBlob) {
-                        // IEとEdge用
-                        window.navigator.msSaveOrOpenBlob(blob, fileName);
-                    } else {
-                        // その他のブラウザ用
-                        a.click();
-                    }
-                    
-                    // クリーンアップ
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(a.href);
-                });
+                // 変換したファイルをダウンロード
+                const blob = new Blob([content], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'converted_' + file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             };
             reader.readAsText(file);
         }
