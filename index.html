@@ -3,162 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTMLビューワー</title>
+    <title>HTMLパス変換ツール</title>
     <style>
         body {
-            font-family: sans-serif;
-            margin: 20px;
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        #dropArea {
-            width: 100%;
-            min-height: 200px;
+        .drop-zone {
             border: 2px dashed #ccc;
-            border-radius: 8px;
             padding: 20px;
             text-align: center;
-            margin-bottom: 20px;
+            margin: 20px 0;
         }
-        #dropArea.dragover {
-            background-color: #e1e1e1;
-            border-color: #999;
-        }
-        #htmlList {
-            margin-bottom: 20px;
-        }
-        .html-button {
-            padding: 8px 16px;
-            margin: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background-color: #f8f8f8;
-            cursor: pointer;
-        }
-        .html-button:hover {
-            background-color: #e8e8e8;
-        }
-        #viewer {
-            width: 100%;
-            min-height: 500px;
-            border: 1px solid #ccc;
-            margin-top: 20px;
+        .drop-zone.dragover {
+            background-color: #e1f5fe;
+            border-color: #2196f3;
         }
     </style>
 </head>
 <body>
-    <div id="dropArea">
-        <h2>フォルダをここにドロップしてください</h2>
-        <p>または</p>
-        <input type="file" id="folderInput" webkitdirectory directory multiple>
+    <h1>HTMLパス変換ツール</h1>
+    <div class="drop-zone" id="dropZone">
+        <p>HTMLファイルをここにドラッグ＆ドロップするか、クリックしてファイルを選択してください</p>
+        <input type="file" id="fileInput" accept=".html" style="display: none;">
     </div>
-    <div id="htmlList"></div>
-    <div id="viewer"></div>
 
     <script>
-        const dropArea = document.getElementById('dropArea');
-        const folderInput = document.getElementById('folderInput');
-        const htmlList = document.getElementById('htmlList');
-        const viewer = document.getElementById('viewer');
-        const fileMap = new Map();
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
 
-        // ドラッグ&ドロップの処理
-        dropArea.addEventListener('dragover', (e) => {
+        // ドラッグ＆ドロップの処理
+        dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropArea.classList.add('dragover');
+            dropZone.classList.add('dragover');
         });
 
-        dropArea.addEventListener('dragleave', () => {
-            dropArea.classList.remove('dragover');
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
         });
 
-        dropArea.addEventListener('drop', (e) => {
+        dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropArea.classList.remove('dragover');
-            handleFiles(e.dataTransfer.items);
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
         });
 
-        folderInput.addEventListener('change', (e) => {
-            handleFiles(e.target.files);
+        // クリックでファイル選択
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
         });
 
-        async function handleFiles(files) {
-            fileMap.clear();
-            htmlList.innerHTML = '';
-            const htmlFiles = [];
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
 
-            // ファイルの処理
-            for (const file of files) {
-                const path = file.webkitRelativePath || file.name;
-                const blob = new Blob([await file.getFile()], { type: file.type });
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let content = e.target.result;
+                
+                // サーバーパスをローカルパスに変換
+                content = content.replace(/href="\/([^"]*)"/g, 'href="$1"');
+                content = content.replace(/src="\/([^"]*)"/g, 'src="$1"');
+                
+                // 変換したファイルをダウンロード
+                const blob = new Blob([content], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
-                fileMap.set(path, url);
-
-                if (path.toLowerCase().endsWith('.html')) {
-                    htmlFiles.push(path);
-                }
-            }
-
-            // HTMLファイルのリスト表示
-            htmlFiles.forEach(path => {
-                const button = document.createElement('button');
-                button.className = 'html-button';
-                button.textContent = path;
-                button.onclick = () => displayHTML(path);
-                htmlList.appendChild(button);
-            });
-        }
-
-        async function displayHTML(htmlPath) {
-            try {
-                const response = await fetch(fileMap.get(htmlPath));
-                let html = await response.text();
-
-                // CSSパスの解決
-                html = html.replace(
-                    /(href=["'])(\/[^"']+\.css)["']/g,
-                    (match, attr, path) => {
-                        const cssPath = path.substring(1); // 先頭の/を削除
-                        const resolvedPath = findMatchingFile(cssPath);
-                        return resolvedPath ? `${attr}${resolvedPath}"` : match;
-                    }
-                );
-
-                // 画像パスの解決
-                html = html.replace(
-                    /(src=["'])(\/[^"']+)["']/g,
-                    (match, attr, path) => {
-                        const imgPath = path.substring(1); // 先頭の/を削除
-                        const resolvedPath = findMatchingFile(imgPath);
-                        return resolvedPath ? `${attr}${resolvedPath}"` : match;
-                    }
-                );
-
-                viewer.innerHTML = html;
-
-                // スタイルシートの適用
-                const links = viewer.getElementsByTagName('link');
-                Array.from(links).forEach(link => {
-                    if (link.rel === 'stylesheet') {
-                        const newLink = document.createElement('link');
-                        newLink.rel = 'stylesheet';
-                        newLink.href = link.href;
-                        link.parentNode.replaceChild(newLink, link);
-                    }
-                });
-
-            } catch (error) {
-                console.error('Error:', error);
-                viewer.innerHTML = '<p>エラーが発生しました。</p>';
-            }
-        }
-
-        function findMatchingFile(searchPath) {
-            // ファイルパスの解決
-            for (const [path, url] of fileMap.entries()) {
-                if (path.endsWith(searchPath)) {
-                    return url;
-                }
-            }
-            return null;
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'converted_' + file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+            reader.readAsText(file);
         }
     </script>
 </body>
