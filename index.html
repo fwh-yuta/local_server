@@ -21,6 +21,18 @@
             background-color: #e1f5fe;
             border-color: #2196f3;
         }
+        .download-btn {
+            padding: 10px 20px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .download-btn:hover {
+            background-color: #1976d2;
+        }
     </style>
 </head>
 <body>
@@ -28,6 +40,9 @@
     <div class="drop-zone" id="dropZone">
         <p>HTMLファイルをここにドラッグ＆ドロップするか、クリックしてファイルを選択してください</p>
         <input type="file" id="fileInput" accept=".html" style="display: none;">
+    </div>
+    <div id="downloadContainer" style="display: none; text-align: center; margin-top: 20px;">
+        <button id="downloadButton" class="download-btn">変換したファイルを保存</button>
     </div>
 
     <script>
@@ -116,19 +131,26 @@
                     }
                 );
 
-                // 変換したファイルをダウンロード
-                const blob = new Blob([content], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'converted_' + file.name;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
+                // 変換後のコンテンツをグローバル変数として保存
+                window.convertedContent = content;
+                window.originalFileName = file.name;
+
+                // ダウンロードボタンを表示
+                document.getElementById('downloadContainer').style.display = 'block';
             };
             reader.readAsText(file);
         }
+
+        // ダウンロードボタンのイベントリスナー
+        document.getElementById('downloadButton').addEventListener('click', () => {
+            const blob = new Blob([window.convertedContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'converted_' + window.originalFileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
     </script>
 </body>
 </html>
