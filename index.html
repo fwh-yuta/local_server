@@ -76,7 +76,14 @@
             <input type="text" id="fileName" style="padding: 5px; margin-right: 10px;">
             <span style="color: #666;">.html</span>
         </div>
-        <button id="downloadButton" class="download-button">変換したファイルをダウンロード</button>
+        <div id="downloadContainer" style="display: none; text-align: center; margin-top: 20px;">
+            <button id="downloadButton" class="download-btn">保存先を選択して保存</button>
+            <p id="browserSupport" style="color: #666; margin-top: 10px; display: none;">
+                ※ この機能は最新のChrome、Edge、Operaでのみ利用可能です。
+                <br>
+                他のブラウザでは通常のダウンロードとなります。
+            </p>
+        </div>
     </div>
 
     <script>
@@ -180,40 +187,55 @@
                 const newButton = downloadButton.cloneNode(true);
                 downloadButton.parentNode.replaceChild(newButton, downloadButton);
                 
-                // Blobの作成（クリック時に毎回新しく作成）
-                newButton.addEventListener('click', () => {
-                    const blob = new Blob([content], { type: 'text/html' });
+                // ダウンロードボタンのイベントリスナー
+                newButton.addEventListener('click', async () => {
+                    const supportMessage = document.getElementById('browserSupport');
                     
-                    // ダウンロードリンクを作成
-                    const a = document.createElement('a');
-                    a.href = window.URL.createObjectURL(blob);
-                    
-                    // ファイル名を取得（空の場合はデフォルト名を使用）
-                    let fileName = fileNameInput.value.trim() || 'converted_' + originalName;
-                    // .htmlが含まれていない場合は追加
-                    if (!fileName.toLowerCase().endsWith('.html')) {
-                        fileName += '.html';
-                    }
-                    a.download = fileName;
-                    
-                    // リンクを非表示で追加
-                    document.body.appendChild(a);
-                    
-                    // saveAsを使用してダイアログを表示
-                    if (window.navigator.msSaveOrOpenBlob) {
-                        // IEとEdge用
-                        window.navigator.msSaveOrOpenBlob(blob, fileName);
+                    // File System Access APIのサポートチェック
+                    if ('showSaveFilePicker' in window) {
+                        try {
+                            // ファイル保存ダイアログを表示
+                            const handle = await window.showSaveFilePicker({
+                                suggestedName: 'converted_' + originalName,
+                                types: [{
+                                    description: 'HTML File',
+                                    accept: {'text/html': ['.html']},
+                                }],
+                            });
+
+                            // FileSystemWritableFileStreamを取得
+                            const writable = await handle.createWritable();
+                            
+                            // ファイルに書き込み
+                            await writable.write(content);
+                            await writable.close();
+
+                        } catch (err) {
+                            if (err.name !== 'AbortError') {
+                                console.error('保存中にエラーが発生しました:', err);
+                                // フォールバック：通常のダウンロード
+                                fallbackDownload();
+                            }
+                        }
                     } else {
-                        // その他のブラウザ用
-                        a.click();
+                        // File System Access APIが利用できない場合
+                        supportMessage.style.display = 'block';
+                        fallbackDownload();
                     }
-                    
-                    // クリーンアップ
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(a.href);
                 });
             };
             reader.readAsText(file);
+        }
+
+        // 従来のダウンロード方式（フォールバック）
+        function fallbackDownload() {
+            const blob = new Blob([window.convertedContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'converted_' + window.originalFileName;
+            a.click();
+            URL.revokeObjectURL(url);
         }
     </script>
 </body>
